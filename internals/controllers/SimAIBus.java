@@ -105,6 +105,7 @@ public class SimAIBus {
 		AIData[] message_list = this.save_load_controller.openLoadChooser();
 
 		if(message_list.length > 0) {
+			this.aibus_handler.clearAIBusMessagesTx();
 			this.main_window.clearTxTable();
 			for(int i=0;i<message_list.length;i+=1)
 				this.aibus_handler.addAIBusMessageTx(message_list[i]);

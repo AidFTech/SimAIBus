@@ -121,7 +121,7 @@ public class SaveLoadController {
 		}
 
 		try {
-			Files.writeString(save_file.toPath(), save_string, StandardOpenOption.CREATE_NEW);
+			Files.write(save_file.toPath(), save_string.getBytes(), StandardOpenOption.CREATE_NEW);
 		} catch (IOException e) {
 			JOptionPane.showMessageDialog(controller.getMainWindow(), "Error saving file.\nMessage: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 			return;

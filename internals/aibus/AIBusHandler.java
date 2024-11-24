@@ -255,6 +255,10 @@ public class AIBusHandler {
 		controller.getMainWindow().removeTxMessage(index);
 	}
 
+	public void clearAIBusMessagesTx() {
+		this.tx_message_list = new AIData[0];
+	}
+
 	private void readAIBusMessage(AIBusCache cache) {
 		if(cache == null)
 			return;
