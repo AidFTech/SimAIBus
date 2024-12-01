@@ -195,22 +195,6 @@ public class AIBusHandler {
 		
 	}
 	
-	/*private AIData getAIBusMessageFragments(byte[] stream, AIData original_msg) {
-		final int start = stream.length;
-		
-		while(active_port.bytesAvailable() <= 0); //TODO: Timeout?
-		active_port.readBytes(stream, active_port.bytesAvailable());
-		
-		AIData new_msg = new AIData(original_msg.l);
-		for(int i=0;i<start;i+=1)
-			new_msg.data[i] = original_msg.data[i];
-		
-		for(int i=0;i<stream.length;i+=1)
-			new_msg.data[i+start] = stream[i];
-		
-		return new_msg;
-	}*/
-	
 	private void addAIBusMessageRx(AIData the_message) {
 		AIData[] new_list = new AIData[rx_message_list.length + 1];
 		
@@ -315,6 +299,9 @@ public class AIBusHandler {
 
 								this.sendAIBusMessage(ack_msg);
 							}
+
+							if(rec_message.l == 2 && rec_message.data[0] == 0x31 && rec_message.data[1] == 0x30)
+								this.sendScreenButtons(rec_message.sender);
 						}
 
 						if(rec_message.receiver == 0x7 && rec_message.l >= 3 && rec_message.data[0] == 0x77)
@@ -361,6 +348,18 @@ public class AIBusHandler {
 				}
 			}
 		}
+	}
+
+	private void sendScreenButtons(final byte receiver) {
+		byte[] button_data = {0x6, 0x20, 0x23, 0x36, 0x37, 0x34, 0x35, 0x26, 0x25, 0x24, 0x6, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x28, 0x29, 0x2A, 0x2B, 0x7, 0x50, 0x51, 0x52, 0x53, 0x54, 0x27};
+		AIData button_msg = new AIData((short)button_data.length, (byte)0x7, receiver);
+
+		button_msg.refreshAIData(button_data);
+
+		int bytes_sent = 0;
+		do {
+			bytes_sent = this.sendAIBusMessage(button_msg);
+		} while(bytes_sent <= 0);
 	}
 	
 	public SimAIBus getController() {
