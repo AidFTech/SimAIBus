@@ -51,10 +51,14 @@ public class SimAIBusMainWindow extends JFrame {
 
 	private JScrollPane rxMessageTableScroll;
 	private boolean autoscroll = true;
+
+	private long last_frame_timer;
 	
 	public SimAIBusMainWindow(SimAIBus controller) {
 		this.controller = controller;
 		SimAIBusMainWindow self = this;
+
+		this.last_frame_timer = System.currentTimeMillis();
 		
 		AIBusHandler handler = this.controller.getCommunicator();
 		
@@ -369,6 +373,8 @@ public class SimAIBusMainWindow extends JFrame {
 	
 	//Add an RX message to the table.
 	public void addRxMessageToWindow(AIData message) {
+		while(System.currentTimeMillis() - this.last_frame_timer < controller.getRefreshRate());
+
 		JScrollBar vertical_bar = rxMessageTableScroll.getVerticalScrollBar();
 
 		AIBusHandler.addAIMessageToTable(rxMessageTable, message);
@@ -377,6 +383,8 @@ public class SimAIBusMainWindow extends JFrame {
 
 		if(autoscroll)
 			vertical_bar.setValue(new_max + rxMessageTable.getRowHeight());
+
+		this.last_frame_timer = System.currentTimeMillis();
 	}
 	
 	//Add a TX message to the table.

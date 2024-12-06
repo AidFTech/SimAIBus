@@ -25,7 +25,9 @@ public class AIBusHandler {
 	private ScreenReceiverGroup receiver_group;
 	private ReceiverTimer receiver_timer;
 	
-	private static final int ai_delay = 20, ai_wait = 5;
+	private static final int ai_delay = 1, ai_wait = 5;
+
+	private long last_received_msg = 0;
 	
 	//private byte[] full_stream;
 	//private boolean wait = false;
@@ -39,9 +41,11 @@ public class AIBusHandler {
 
 		this.receiver_group = new ScreenReceiverGroup();
 		this.receiver_timer = new ReceiverTimer(this.receiver_group);
+
+		this.last_received_msg = System.currentTimeMillis();
 		
 		refreshAllPorts();
-		//ai_listener = new AIListener();
+
 		self = this;
 	}
 	
@@ -121,15 +125,7 @@ public class AIBusHandler {
 		AIBusCache byte_cache = this.ai_listener.cache;
 		byte_cache.fill();
 		
-		long start_time = System.nanoTime()/1000;
-		int byte_cache_size = byte_cache.bytesAvailable();
-		while(System.nanoTime()/1000 - start_time < ai_delay) {
-			byte_cache.fill();
-			if(byte_cache.bytesAvailable() != byte_cache_size) {
-				byte_cache_size = byte_cache.bytesAvailable();
-				start_time = System.nanoTime()/1000;
-			}
-		}
+		while(System.currentTimeMillis() - last_received_msg < ai_delay);
 		
 		byte[] data = the_message.getBytes();
 		return active_port.writeBytes(data, data.length);
@@ -471,13 +467,16 @@ public class AIBusHandler {
 			if(arg0.getSerialPort() != this.port)
 				return;
 
-			long start_time = System.nanoTime()/1000000;
 			int avail = port.bytesAvailable();
+
+			if(avail > 0)
+				last_received_msg = System.currentTimeMillis();
+
 			this.cache.fill();
-			while(System.nanoTime()/1000000 - start_time < ai_wait) {
+			while(System.currentTimeMillis() - last_received_msg < ai_wait) {
 				if(port.bytesAvailable() != avail) {
 					avail = port.bytesAvailable();
-					start_time = System.nanoTime()/1000000;
+					last_received_msg = System.currentTimeMillis();
 					this.cache.fill();
 				}
 			}

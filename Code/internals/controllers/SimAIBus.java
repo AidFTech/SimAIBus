@@ -1,5 +1,7 @@
 package controllers;
 
+import java.awt.GraphicsEnvironment;
+
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
@@ -16,6 +18,8 @@ public class SimAIBus {
 	private SaveLoadController save_load_controller;
 	
 	private boolean split_data = false;
+
+	private int refresh_delay = 0;
 	
 	public static void main(String args[]) {
 		try {
@@ -41,7 +45,8 @@ public class SimAIBus {
 		this.save_load_controller = new SaveLoadController(this);
 
 		SimAIBus self = this;
-
+		this.refresh_delay = 16;
+		
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				self.main_window = new SimAIBusMainWindow(self);
@@ -110,6 +115,11 @@ public class SimAIBus {
 			for(int i=0;i<message_list.length;i+=1)
 				this.aibus_handler.addAIBusMessageTx(message_list[i]);
 		}
+	}
+
+	//Get the monitor refresh rate.
+	public int getRefreshRate() {
+		return this.refresh_delay;
 	}
 	
 	public void endProgram() {
