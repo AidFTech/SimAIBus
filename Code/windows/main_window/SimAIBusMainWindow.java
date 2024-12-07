@@ -286,6 +286,7 @@ public class SimAIBusMainWindow extends JFrame {
 		txControlPanel.add(btnSendSelected);
 		
 		JButton btnSaveTxList = new JButton("Save TX List");
+		btnSaveTxList.setToolTipText("Save the list of messages available to send to your computer for future use.");
 		btnSaveTxList.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				controller.activateTxListSave();
@@ -295,6 +296,7 @@ public class SimAIBusMainWindow extends JFrame {
 		txControlPanel.add(btnSaveTxList);
 		
 		JButton btnLoadTxList = new JButton("Load TX List");
+		btnLoadTxList.setToolTipText("Load a preset list of messages to send.");
 		btnLoadTxList.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				if(txMessageTable.getRowCount() > 0) {
