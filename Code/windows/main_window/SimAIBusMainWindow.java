@@ -8,6 +8,7 @@ import java.util.NoSuchElementException;
 import javax.swing.JFrame;
 
 import controllers.SimAIBus;
+import tools.AckIDWindow;
 import tools.EditAIBusWindow;
 import tools.ScreenEmulatorWindow;
 
@@ -18,6 +19,9 @@ import com.fazecast.jSerialComm.SerialPort;
 import aibus.*;
 
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JComboBox;
 import javax.swing.JButton;
@@ -32,6 +36,7 @@ import javax.swing.JScrollPane;
 import javax.swing.AbstractButton;
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
+import javax.swing.JSeparator;
 
 public class SimAIBusMainWindow extends JFrame {
 
@@ -65,9 +70,9 @@ public class SimAIBusMainWindow extends JFrame {
 		this.setTitle("SimAIBus");
 		this.setFocusable(true);
 		this.setResizable(true);
-		
-		this.getContentPane().setPreferredSize(new Dimension(w_width, w_height));
-		this.getContentPane().setMinimumSize(new Dimension(w_width, w_height));
+
+		this.getContentPane().setPreferredSize(new Dimension(w_width, w_height + 30));
+		this.getContentPane().setMinimumSize(new Dimension(w_width, w_height + 30));
 		this.getContentPane().setSize(this.getContentPane().getPreferredSize());
 		this.pack();
 		
@@ -76,6 +81,45 @@ public class SimAIBusMainWindow extends JFrame {
 		this.setDefaultCloseOperation(EXIT_ON_CLOSE);
 		this.setLocationRelativeTo(null);
 		this.getContentPane().setLayout(null);
+
+		//Main menu.
+		JMenuBar main_menu = new JMenuBar();
+		this.setJMenuBar(main_menu);
+
+		JMenu menu_file = new JMenu("File");
+		main_menu.add(menu_file);
+
+		JMenuItem menu_file_item_save_rx = new JMenuItem("Save RX List");
+		menu_file_item_save_rx.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				controller.activateRxListSave();
+			}
+		});
+
+		JMenuItem menu_file_item_save_tx = new JMenuItem("Save TX List");
+		menu_file_item_save_tx.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				controller.activateTxListSave();
+			}
+		});
+
+		JMenuItem menu_file_item_load_tx = new JMenuItem("Load TX List");
+		menu_file_item_load_tx.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				self.loadTxTable();
+			}
+		});
+
+		menu_file.add(menu_file_item_save_rx);
+		menu_file.add(new JSeparator());
+		menu_file.add(menu_file_item_save_tx);
+		menu_file.add(menu_file_item_load_tx);
+		
+		JMenu menu_tools = new JMenu("Tools");
+		main_menu.add(menu_tools);
+		
+		JMenuItem menu_tools_item_ack_ids = new JMenuItem("Set Acknowledgment IDs");
+		menu_tools.add(menu_tools_item_ack_ids);
 		
 		JPanel serialControlPanel = new JPanel();
 		serialControlPanel.setBounds(0, 0, this.getContentPane().getWidth(), 98);
@@ -145,6 +189,15 @@ public class SimAIBusMainWindow extends JFrame {
 		rdbtnIbus.setBounds(460, 33, 190, 27);
 		serialControlPanel.add(rdbtnIbus);
 		
+		menu_tools_item_ack_ids.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if(!rdbtnAibusn.isSelected())
+					JOptionPane.showMessageDialog(self, "IBus ping/pong acknowledgment is not supported yet. Settings apply to AIBus mode only.", "Acknowledgment Disabled", JOptionPane.INFORMATION_MESSAGE);
+
+				new AckIDWindow(self, controller.getCommunicator().getAckIDs());
+			}
+		});
+
 		JCheckBox chckbxAutoscroll = new JCheckBox("Autoscroll");
 		chckbxAutoscroll.setToolTipText("Check to allow the received message table to scroll automatically as new messages are added.");
 		chckbxAutoscroll.setSelected(autoscroll);
@@ -299,13 +352,7 @@ public class SimAIBusMainWindow extends JFrame {
 		btnLoadTxList.setToolTipText("Load a preset list of messages to send.");
 		btnLoadTxList.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
-				if(txMessageTable.getRowCount() > 0) {
-					final int answer = JOptionPane.showConfirmDialog(self, "This will erase all messages created in the Tx list. Proceed?", "Load", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-					if(answer == JOptionPane.NO_OPTION)
-						return;
-				}
-
-				controller.activateTxListLoad();
+				self.loadTxTable();
 			}
 		});
 		btnLoadTxList.setBounds(140, 204, 136, 27);
@@ -373,7 +420,7 @@ public class SimAIBusMainWindow extends JFrame {
 		this.setVisible(true);
 	}
 	
-	//Add an RX message to the table.
+	/** Add an RX message to the table. */
 	public void addRxMessageToWindow(AIData message) {
 		while(System.currentTimeMillis() - this.last_frame_timer < controller.getRefreshRate());
 
@@ -389,38 +436,52 @@ public class SimAIBusMainWindow extends JFrame {
 		this.last_frame_timer = System.currentTimeMillis();
 	}
 	
-	//Add a TX message to the table.
+	/** Add a TX message to the table. */
 	public void addTxMessageToWindow(AIData message) {
 		AIBusHandler.addAIMessageToTable(txMessageTable, message);
 	}
 
-	//Change an existing TX message.
+	/** Change an existing TX message. */
 	public void setTxMessage(AIData message, final int row) {
 		AIBusHandler.setTableAIMessage(txMessageTable, message, row);
 	}
 	
-	//Remove a TX message from the table.
+	/** Remove a TX message from the table. */
 	public void removeTxMessage(final int index) {
 		DefaultTableModel tx_model = (DefaultTableModel) txMessageTable.getModel();
 		tx_model.removeRow(index);
 	}
 
-	//Clear the TX table.
+	/** Clear the TX table. */
 	public void clearTxTable() {
 		DefaultTableModel tx_model = (DefaultTableModel) txMessageTable.getModel();
 		tx_model.setRowCount(0);
 	}
 
-	//Connect or disconnect the serial port.
+	/** Load a TX list. */
+	private void loadTxTable() {
+		if(txMessageTable.getRowCount() > 0) {
+			final int answer = JOptionPane.showConfirmDialog(this, "This will erase all messages created in the Tx list. Proceed?", "Load", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+			if(answer == JOptionPane.NO_OPTION)
+				return;
+		}
+
+		controller.activateTxListLoad();
+	}
+
+	/** Connect or disconnect the serial port. */
 	private void connectOrDisconnect(JButton button, final boolean connect, final byte standard) {
 		if(this.controller.getActivePort() != null) {
 			if(connect) {
+				AIBusHandler ai_handler = this.controller.getCommunicator();
 				if(standard == standard_aibus) {
 					this.controller.getActivePort().setBaudRate(115200);
 					this.controller.getActivePort().setParity(SerialPort.NO_PARITY);
+					ai_handler.setAcknowledge(true);
 				} else if(standard == standard_ibus) {
 					this.controller.getActivePort().setBaudRate(9600);
 					this.controller.getActivePort().setParity(SerialPort.EVEN_PARITY);
+					ai_handler.setAcknowledge(false);
 				} else
 					return;
 
@@ -447,7 +508,7 @@ public class SimAIBusMainWindow extends JFrame {
 		}
 	}
 
-	//Set the baud control state.
+	/** Set the baud control state. */
 	private void setBaudButtonState(final boolean lock) {
 		Enumeration<AbstractButton> buttons = busStandardGroup.getElements();
 		boolean complete = false;
@@ -462,7 +523,7 @@ public class SimAIBusMainWindow extends JFrame {
 		}
 	}
 
-	//Refresh the serial list.
+	/** Refresh the serial list. */
 	private void serialComboBoxRefresh(JComboBox<String> combo_box, JButton connect_button) {
 		connectOrDisconnect(connect_button, false, (byte) 0);
 

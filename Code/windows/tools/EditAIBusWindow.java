@@ -153,8 +153,7 @@ public class EditAIBusWindow extends JDialog {
 							return;
 						}
 						byte[] data = getDataString(((JTextField)component_list[0]).getText());
-						AIData new_message = new AIData((short)data.length, sender, receiver);
-						new_message.refreshAIData(data);
+						AIData new_message = new AIData(data, sender, receiver);
 
 						if(populate_data) {
 							ai_msg.refreshAIData(new_message);

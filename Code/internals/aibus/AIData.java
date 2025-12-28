@@ -17,6 +17,23 @@ public class AIData {
 		this.sender = sender;
 		this.receiver = receiver;
 	}
+
+	public AIData(byte[] data, final byte sender, final byte receiver) {
+		this.sender = sender;
+		this.receiver = receiver;
+		this.l = (short)data.length;
+
+		this.data = new byte[data.length];
+		for(int i=0;i<data.length;i+=1)
+			this.data[i] = data[i];
+	}
+
+	public AIData(short newl, final byte sender, final byte receiver, byte[] data) {
+		this(newl, sender, receiver);
+
+		for(int i=0;i<this.l && i<data.length;i+=1)
+			this.data[i] = data[i];
+	}
 	
 	public AIData(AIData copy) {
 		this.l = copy.l;

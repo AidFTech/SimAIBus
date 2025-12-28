@@ -24,13 +24,15 @@ public class AIBusHandler {
 
 	private ScreenReceiverGroup receiver_group;
 	private ReceiverTimer receiver_timer;
+
+	private ArrayList<Byte> ack_ids;
+	private boolean acknowledge_on = true;
 	
 	private static final int ai_delay = 1, ai_wait = 5;
 
+	private static final short aidata_limit = 0x30 - 4;
+
 	private long last_received_msg = 0;
-	
-	//private byte[] full_stream;
-	//private boolean wait = false;
 	
 	public AIBusHandler(SimAIBus controller) {
 		this.controller = controller;
@@ -38,6 +40,8 @@ public class AIBusHandler {
 		this.tx_message_list = new AIData[0];
 
 		this.ai_listener = new AIListener(new AIBusCache(null), this);
+
+		this.ack_ids = new ArrayList<Byte>(0);
 
 		this.receiver_group = new ScreenReceiverGroup();
 		this.receiver_timer = new ReceiverTimer(this.receiver_group);
@@ -111,6 +115,41 @@ public class AIBusHandler {
 	
 	//AIBus stuff:	
 	public int sendAIBusMessage(AIData the_message) {
+		if(the_message.l > aidata_limit + 3) {
+			final int count = the_message.l/aidata_limit, r = the_message.l%aidata_limit;
+
+			AIData[] ai_group = new AIData[count + (r == 0 ? 0 : 1)];
+
+			for(int i=0;i<ai_group.length;i+=1) {
+				final int l = i < ai_group.length - 1 || r == 0 ? aidata_limit + 3 : r + 3;
+				byte[] ai_data = new byte[l];
+				ai_data[0] = (byte)0x91;
+				ai_data[1] = (byte)ai_group.length;
+				ai_data[2] = (byte)i;
+				for(int d=0;d<l-3;d+=1)
+					ai_data[d+3] = the_message.data[aidata_limit*i+d];
+
+				ai_group[i] = new AIData((short)l, the_message.sender, the_message.receiver, ai_data);
+			}
+
+			int sent = 0;
+
+			for(int i=0;i<ai_group.length;i+=1) {
+				final int last_sent = sendAIBusMessage(ai_group[i]);
+				if(last_sent < 0)
+					return -1;
+
+				sent += last_sent;
+				
+				try {
+					Thread.sleep(20);
+				} catch (InterruptedException e) {
+					
+				}
+			}
+			return sent;
+		}
+
 		if(active_port == null)
 			return -1;
 		
@@ -126,7 +165,7 @@ public class AIBusHandler {
 		byte_cache.fill();
 		
 		while(System.currentTimeMillis() - last_received_msg < ai_delay);
-		
+
 		byte[] data = the_message.getBytes();
 		return active_port.writeBytes(data, data.length);
 	}
@@ -287,17 +326,32 @@ public class AIBusHandler {
 						addAIBusMessageRx(rec_message);
 						controller.getMainWindow().addRxMessageToWindow(rec_message);
 
-						if(this.receiver_group.screen_emulator_on && rec_message.receiver == 0x7) {
-							if(rec_message.l >= 1 && rec_message.data[0] != (byte)0x80) {
-								byte[] ack_data = {(byte)0x80};
-								AIData ack_msg = new AIData((byte)ack_data.length, (byte)0x7, rec_message.sender);
-								ack_msg.refreshAIData(ack_data);
+						if(acknowledge_on) {
+							//Acknowledgment list.
+							for(int a=0;a<ack_ids.size();a+=1) {
+								if(rec_message.receiver == ack_ids.get(a) && rec_message.l >= 1 && rec_message.data[0] != 0x80) {
+									final byte id = ack_ids.get(a);
 
-								this.sendAIBusMessage(ack_msg);
+									byte[] ack_data = {(byte)0x80};
+									AIData ack_msg = new AIData(ack_data, id, rec_message.sender);
+
+									this.sendAIBusMessage(ack_msg);
+									
+									break;
+								}
 							}
 
-							if(rec_message.l == 2 && rec_message.data[0] == 0x31 && rec_message.data[1] == 0x30)
-								this.sendScreenButtons(rec_message.sender);
+							if(this.receiver_group.screen_emulator_on && rec_message.receiver == 0x7) {
+								if(rec_message.l >= 1 && rec_message.data[0] != (byte)0x80) {
+									byte[] ack_data = {(byte)0x80};
+									AIData ack_msg = new AIData(ack_data, (byte)0x7, rec_message.sender);
+
+									this.sendAIBusMessage(ack_msg);
+								}
+
+								if(rec_message.l == 2 && rec_message.data[0] == 0x31 && rec_message.data[1] == 0x30)
+									this.sendScreenButtons(rec_message.sender);
+							}
 						}
 
 						if(rec_message.receiver == 0x7 && rec_message.l >= 3 && rec_message.data[0] == 0x77)
@@ -347,10 +401,8 @@ public class AIBusHandler {
 	}
 
 	private void sendScreenButtons(final byte receiver) {
-		byte[] button_data = {0x6, 0x20, 0x23, 0x36, 0x37, 0x34, 0x35, 0x26, 0x25, 0x24, 0x6, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x28, 0x29, 0x2A, 0x2B, 0x7, 0x50, 0x51, 0x52, 0x53, 0x54, 0x27};
-		AIData button_msg = new AIData((short)button_data.length, (byte)0x7, receiver);
-
-		button_msg.refreshAIData(button_data);
+		byte[] button_data = {0x31, 0x30, 0x6, 0x20, 0x23, 0x36, 0x37, 0x34, 0x35, 0x26, 0x25, 0x24, 0x6, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x28, 0x29, 0x2A, 0x2B, 0x7, 0x50, 0x51, 0x52, 0x53, 0x54, 0x27};
+		AIData button_msg = new AIData(button_data, (byte)0x7, receiver);
 
 		int bytes_sent = 0;
 		do {
@@ -358,6 +410,14 @@ public class AIBusHandler {
 		} while(bytes_sent <= 0);
 	}
 	
+	public void setAcknowledge(final boolean acknowledge) {
+		this.acknowledge_on = acknowledge;
+	}
+
+	public ArrayList<Byte> getAckIDs() {
+		return this.ack_ids;
+	}
+
 	public SimAIBus getController() {
 		return this.controller;
 	}
