@@ -49,7 +49,7 @@ public class AckIDWindow extends JDialog {
 		
 		JTextField id_text_field = new JTextField();
 		id_text_field.setToolTipText("Enter the desired ID.");
-		id_text_field.setBounds(144, 12, 114, 30);
+		id_text_field.setBounds(144, 12, 111, 30);
 		getContentPane().add(id_text_field);
 		id_text_field.setColumns(10);
 		

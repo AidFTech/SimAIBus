@@ -25,12 +25,12 @@ public class AIBusHandler {
 	private ScreenReceiverGroup receiver_group;
 	private ReceiverTimer receiver_timer;
 
-	private ArrayList<Byte> ack_ids;
+	private ArrayList<Byte> ack_ids; //The acknowledgment ID list.
 	private boolean acknowledge_on = true;
 	
 	private static final int ai_delay = 1, ai_wait = 5;
 
-	private static final short aidata_limit = 0x30 - 4;
+	private static final short aidata_limit = 0x20;
 
 	private long last_received_msg = 0;
 	
@@ -54,6 +54,7 @@ public class AIBusHandler {
 	}
 	
 	//Serial port stuff:
+	/** Refresh the serial port list. */
 	public void refreshAllPorts() {
 		all_ports = SerialPort.getCommPorts();
 		
@@ -73,10 +74,12 @@ public class AIBusHandler {
 		}
 	}
 	
+	/** Get the serial port list. */
 	public SerialPort[] getAllPorts() {
 		return this.all_ports;
 	}
 	
+	/** Get the index of the desired serial port. */
 	public int getPortIndex(SerialPort desired) {
 		int index = -1;
 		for(int i=0;i<all_ports.length;i+=1) {
@@ -89,6 +92,7 @@ public class AIBusHandler {
 		return index;
 	}
 	
+	/** Activate the desired serial port. */
 	public void activatePort(SerialPort port) {
 		if(port.isOpen()) {
 			final int rd = port.bytesAvailable();
@@ -108,12 +112,14 @@ public class AIBusHandler {
 		}
 	}
 	
+	/** Deactivate the desired serial port. */
 	public void deactivatePort(SerialPort port) {
 		port.removeDataListener();
 		this.receiver_timer.run = false;
 	}
 	
-	//AIBus stuff:	
+	//AIBus stuff:
+	/** Write an AIBus message to the serial port. */
 	public int sendAIBusMessage(AIData the_message) {
 		if(the_message.l > aidata_limit + 3) {
 			final int count = the_message.l/aidata_limit, r = the_message.l%aidata_limit;
@@ -167,9 +173,14 @@ public class AIBusHandler {
 		while(System.currentTimeMillis() - last_received_msg < ai_delay);
 
 		byte[] data = the_message.getBytes();
-		return active_port.writeBytes(data, data.length);
+		final int bytes_written = active_port.writeBytes(data, data.length);
+
+		active_port.setRTS();
+
+		return bytes_written;
 	}
 	
+	/** Write an AIBus message from the TX list to the serial port. */
 	public int sendAIBusMessage(final int message_index) {
 		if(message_index >= 0) 
 			return sendAIBusMessage(this.tx_message_list[message_index]);
@@ -177,6 +188,7 @@ public class AIBusHandler {
 			return -1;
 	}
 
+	/** Get an array of AIBus messages from a byte stream. */
 	private AIData[] getAIBusMessage(byte[] stream) {
 		final int total_length = stream.length;
 		
@@ -230,6 +242,7 @@ public class AIBusHandler {
 		
 	}
 	
+	/** Add an AIBus message to the RX list. */
 	private void addAIBusMessageRx(AIData the_message) {
 		AIData[] new_list = new AIData[rx_message_list.length + 1];
 		
@@ -240,10 +253,12 @@ public class AIBusHandler {
 		rx_message_list = new_list;
 	}
 	
+	/** Clear the RX list. */
 	public void clearRXList() {
 		this.rx_message_list = new AIData[0];
 	}
 	
+	/** Add an AIBus message to the TX list. */
 	public void addAIBusMessageTx(AIData the_message) {
 		AIData[] new_list = new AIData[tx_message_list.length + 1];
 		
@@ -256,6 +271,7 @@ public class AIBusHandler {
 		controller.getMainWindow().addTxMessageToWindow(the_message);
 	}
 	
+	/** Remove an AIBus message from the TX list. */
 	public void removeAIBusMessageTx(final int index) {
 		if(tx_message_list.length <= 0)
 			return;
@@ -274,6 +290,7 @@ public class AIBusHandler {
 		controller.getMainWindow().removeTxMessage(index);
 	}
 
+	/** Clear the TX list. */
 	public void clearAIBusMessagesTx() {
 		this.tx_message_list = new AIData[0];
 	}
@@ -282,10 +299,10 @@ public class AIBusHandler {
 		if(cache == null)
 			return;
 
-		while(cache.bytesAvailable() >= 0) {
+		while(cache.bytesAvailable() >= 4) {
 			try {
 				cache.fill();
-				if(cache.bytesAvailable() < 2) {
+				if(cache.bytesAvailable() < 4) {
 					long start_time = System.nanoTime()/1000000;
 					int avail = cache.bytesAvailable();
 					while(System.nanoTime()/1000000 - start_time < ai_wait) {
@@ -296,15 +313,24 @@ public class AIBusHandler {
 						}
 					}
 					
-					if(cache.bytesAvailable() < 2)
+					if(cache.bytesAvailable() < 4) {
+						final int dl = cache.bytesAvailable();
+						byte[] db = new byte[dl];
+						cache.readBytes(db, dl);
 						return;
+					}
 				}
 			
 				byte[] init = new byte[2];		
 				cache.readBytes(init, 2);
+
+				final int l = init[1]&0xFF;
+
+				if(l > aidata_limit + 5 || l < 2)
+					return;
 				
-				long start_time = System.nanoTime()/1000000;
-				while(cache.bytesAvailable() < (int)(init[1]&0xFF)) {
+				final long start_time = System.nanoTime()/1000000;
+				while(cache.bytesAvailable() < l) {
 					cache.fill();
 					if(System.nanoTime()/1000000 - start_time >= ai_wait) {
 						final int dl = cache.bytesAvailable();
@@ -361,6 +387,18 @@ public class AIBusHandler {
 			} catch(ArrayIndexOutOfBoundsException | NullPointerException e) {
 				return;
 			}
+		}
+		
+		if(cache.bytesAvailable() > 0) {
+			final long start_time = System.nanoTime()/1000000;
+			while(System.nanoTime()/1000000 - start_time < ai_wait) {
+				if(cache.bytesAvailable() >= 4)
+					return;
+			}
+			
+			final int dl = cache.bytesAvailable();
+			byte[] db = new byte[dl];
+			cache.readBytes(db, dl);
 		}
 	}
 
@@ -433,7 +471,7 @@ public class AIBusHandler {
 	public AIData[] getRxMessageList() {
 		return this.rx_message_list;
 	}
-	
+
 	public void addRxAIMessagesToTable(JTable table, boolean clear) {
 		DefaultTableModel table_model;
 		if(table.getModel() instanceof DefaultTableModel)
@@ -494,7 +532,7 @@ public class AIBusHandler {
 			table_model.setValueAt(ascii_string, row, 4);
 		}
 	}
-	
+
 	private final class AIListener implements SerialPortDataListenerWithExceptions {
 		private SerialPort port;
 
@@ -540,6 +578,7 @@ public class AIBusHandler {
 					this.cache.fill();
 				}
 			}
+			
 			parent.readAIBusMessage(cache);
 		}
 
@@ -668,7 +707,7 @@ public class AIBusHandler {
 				return;
 
 			final int l = this.port.bytesAvailable();
-			if(l < 0)
+			if(l <= 0)
 				return;
 
 			byte[] data = new byte[l];
@@ -686,12 +725,12 @@ public class AIBusHandler {
 			readBytes(d, l, 0);
 		}
 
-		private void readBytes(byte[] d, int l, int offset) {
+		private void readBytes(byte[] d, int l, final int offset) {
 			if(d.length < l)
 				return;
 
 			int index = offset;
-			while(!this.data.isEmpty()) {
+			while(index - offset < l && index < d.length) {
 				d[index] = (byte)(this.data.get(0));
 				this.data.remove(0);
 				index += 1;
