@@ -195,6 +195,10 @@ public class AIBusHandler {
 		int h = 0, message = 0;
 		AIData[] data_collection = new AIData[255];
 		
+		for(int i=0;i<stream.length;i+=1)
+			System.out.print(Integer.toHexString(stream[i]&0xFF) + " ");
+		System.out.println();
+		
 		while(h<total_length) {
 			//int start = h;
 			try {
@@ -221,6 +225,48 @@ public class AIBusHandler {
 						new_msg.data[i] = data[i+3];
 
 					data_collection[message] = new_msg;
+				} else {
+					h -= l+3;
+					int sh = h+1;
+
+					boolean valid = false;
+					while(!valid && sh + 4 < total_length) {
+						final byte s = stream[sh], r = stream[sh+2];
+						final int newl = stream[sh+1]&0xFF;
+
+						if(newl < 2 || newl > aidata_limit + 5 || newl > total_length - (sh + 4)) {
+							sh += 1;
+							continue;
+						}
+
+						final int end_sh = sh + newl+3;
+
+						byte[] new_data = new byte[newl + 2];
+
+						for(int i=sh;i<end_sh && i-sh<new_data.length;i+=1)
+							new_data[i-sh] = stream[i];
+
+						if(AIData.checkValidity(new_data)) {
+							AIData new_msg = new AIData((short) (newl-2), s, r);
+				
+							new_msg.sender = s;
+							new_msg.receiver = r;
+							
+							for(int i=0;i<newl-2;i+=1)
+								new_msg.data[i] = new_data[i+3];
+
+							data_collection[message] = new_msg;
+
+							valid = true;
+							h = end_sh;
+							break;
+						}
+
+						sh += 1;
+					}
+
+					if(!valid) //Something went wrong.
+						break;
 				}
 				
 				message += 1;
@@ -295,6 +341,7 @@ public class AIBusHandler {
 		this.tx_message_list = new AIData[0];
 	}
 
+	/** Read an AIBus message from the serial cache. */
 	private void readAIBusMessage(AIBusCache cache) {
 		if(cache == null)
 			return;
@@ -402,6 +449,7 @@ public class AIBusHandler {
 		}
 	}
 
+	/** Reset the screen receiver timers. */
 	private void resetReceiverTimers(final byte source, final byte mode) {
 		if((mode&0x80) != 0) {
 			this.receiver_group.source_receiver = source;
@@ -438,6 +486,7 @@ public class AIBusHandler {
 		}
 	}
 
+	/** Send the supported button message as the screen. */
 	private void sendScreenButtons(final byte receiver) {
 		byte[] button_data = {0x31, 0x30, 0x6, 0x20, 0x23, 0x36, 0x37, 0x34, 0x35, 0x26, 0x25, 0x24, 0x6, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x28, 0x29, 0x2A, 0x2B, 0x7, 0x50, 0x51, 0x52, 0x53, 0x54, 0x27};
 		AIData button_msg = new AIData(button_data, (byte)0x7, receiver);
@@ -448,30 +497,37 @@ public class AIBusHandler {
 		} while(bytes_sent <= 0);
 	}
 	
+	/** Set whether to acknowledge any messages sent to a device on the ack ID list.*/
 	public void setAcknowledge(final boolean acknowledge) {
 		this.acknowledge_on = acknowledge;
 	}
 
+	/** Get the ack ID list. */
 	public ArrayList<Byte> getAckIDs() {
 		return this.ack_ids;
 	}
 
+	/** Get the main controller. */
 	public SimAIBus getController() {
 		return this.controller;
 	}
 
+	/** Get the screen receiver IDs. */
 	public ScreenReceiverGroup getReceiverGroup() {
 		return this.receiver_group;
 	}
 
+	/** Get the TX message list. */
 	public AIData[] getTxMessageList() {
 		return this.tx_message_list;
 	}
 	
+	/** Get the RX message list. */
 	public AIData[] getRxMessageList() {
 		return this.rx_message_list;
 	}
 
+	/** Add the list of RX messages to a table. */
 	public void addRxAIMessagesToTable(JTable table, boolean clear) {
 		DefaultTableModel table_model;
 		if(table.getModel() instanceof DefaultTableModel)
@@ -488,6 +544,7 @@ public class AIBusHandler {
 			addAIMessageToTable(table_model, rx_message_list[i], -1);
 	}
 	
+	/** Add an AIBus message to a table. */
 	public static void addAIMessageToTable(JTable table, AIData ai_d) {
 		DefaultTableModel table_model;
 		if(table.getModel() instanceof DefaultTableModel)
@@ -498,6 +555,7 @@ public class AIBusHandler {
 		addAIMessageToTable(table_model, ai_d, -1);
 	}
 
+	/** Set a table row to an AIBus message. */
 	public static void setTableAIMessage(JTable table, AIData ai_d, final int row) {
 		DefaultTableModel table_model;
 		if(table.getModel() instanceof DefaultTableModel)
@@ -508,6 +566,7 @@ public class AIBusHandler {
 		addAIMessageToTable(table_model, ai_d, row);
 	}
 	
+	/** Add an AIBus message to a table at a specified row. */
 	private static void addAIMessageToTable(DefaultTableModel table_model, AIData ai_d, final int row) {
 		String data_string = "", ascii_string = "";
 		for(int i=0;i<ai_d.data.length; i+=1) {
@@ -546,6 +605,7 @@ public class AIBusHandler {
 
 		}
 
+		/** Set the serial port. */
 		private void setPort(SerialPort port) {
 			this.port = port;
 			this.cache.setPort(port);
@@ -698,10 +758,12 @@ public class AIBusHandler {
 			this.data = new ArrayList<Byte>(0);
 		}
 
+		/** Set the receiving serial port. */
 		private void setPort(SerialPort port) {
 			this.port = port;
 		}
 
+		/** Fill the cache with data from the serial port. */
 		private void fill() {
 			if(this.port == null)
 				return;
@@ -717,14 +779,17 @@ public class AIBusHandler {
 				this.data.add(Byte.valueOf(data[i]));
 		}
 
+		/** Get the number of bytes available in the cache. */
 		private int bytesAvailable() {
 			return this.data.size();
 		}
 
+		/** Read bytes from the cache. */
 		private void readBytes(byte[] d, int l) {
 			readBytes(d, l, 0);
 		}
 
+		/** Read bytes from the cache. */
 		private void readBytes(byte[] d, int l, final int offset) {
 			if(d.length < l)
 				return;
